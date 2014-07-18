@@ -8,13 +8,20 @@
 
 #import "MyScene.h"
 #import "Constants.h"
+
+#define CC_RADIANS_TO_DEGREES(__ANGLE__) ((__ANGLE__) * 57.29577951f) // PI * 180
+#define kCGPointEpsilon FLT_EPSILON
+
 @implementation MyScene
 
 -(id)initWithSize:(CGSize)size {    
     if (self = [super initWithSize:size]) {
+        
         rotateNow = FALSE;
         touchOnWheel = FALSE;
         self.userInteractionEnabled = YES;
+        glClearColor(1.0f , 1.0f, 1.0f, 1);
+
         SKSpriteNode *background = [SKSpriteNode spriteNodeWithImageNamed:@"i_main_screen_bg.png"];
         background.position =  CGPointMake(CGRectGetMidX(self.frame), CGRectGetMidY(self.frame));
         [self addChild:background];
@@ -34,18 +41,17 @@
     
     oldAngle = wheel.zRotation;
     currentTip = 1;
-    
-    SKAction* soundAction = [SKAction playSoundFileNamed:kTapSoundFile waitForCompletion:NO];
-    [self runAction:soundAction];
     return self;
 }
 
 -(void)touchesBegan:(NSSet *)touches withEvent:(UIEvent *)event {
     /* Called when a touch begins */
     
-        for (UITouch *touch in touches) {
+        for (UITouch *touch in touches)
+        {
             CGPoint location = [touch locationInNode:self];
-            CGFloat distance = SDistanceBetweenPoints(location,wheel.position);
+            
+            float distance = rwLength(subtractPoint(location,wheel.position));
             
             startPoint = location;
             startPoint2 = location;
@@ -54,38 +60,45 @@
             
             if(distance < wheel.size.width/2*wheel.xScale)
                 touchOnWheel = YES;
-  
+            else
+                touchOnWheel = NO;
+            NSLog(touchOnWheel ? @"Yes" : @"No");
+
         }
 }
 
 -(void)touchesMoved:(NSSet *)touches withEvent:(UIEvent *)event
 {
-    for (UITouch *touch in touches) {
+    for (UITouch *touch in touches)
+    {
         CGPoint location = [touch locationInNode:self];
+
         lastPoint = location;
         float alpha = 0.0f;
-        if (touchOnWheel && !rotateNow) {
-            CGFloat point1 = SDistanceBetweenPoints([wheel position], lastPoint);
-            CGFloat point2 = SDistanceBetweenPoints([wheel position], startPoint2);
-            alpha = atan2f(point2, point1);
+        NSLog(touchOnWheel ? @"Yes" : @"No");
+
+        if (touchOnWheel && !rotateNow)
+        {
+            CGPoint point1 = subtractPoint(location,[wheel position]);
+            CGPoint point2 = subtractPoint(startPoint2,[wheel position]);
+        
+            alpha = angleBetweenPoints(point1, point2);
             lastAngle = alpha;
-            wheel.zRotation = alpha- M_PI_2 ;
+            [self rotateToAngle:alpha] ;
 
             startPoint2 = location;
-            
-            NSString *nodeName = [NSString stringWithFormat:@"%d",(kTextTip+currentTip)];
-            [self enumerateChildNodesWithName:nodeName usingBlock:^(SKNode *node, BOOL *stop) {
-                [node setHidden:true];
-            }];
+
         }
         
     }
 }
 
 
--(void)update:(CFTimeInterval)currentTime {
-    /* Called before each frame is rendered */
-}
+//-(void)update:(CFTimeInterval)currentTime {
+//    /* Called before each frame is rendered */
+//
+//
+//}
 
 -(void)createSpriteTip:(int)number
 {
@@ -100,4 +113,44 @@ CGFloat SDistanceBetweenPoints(CGPoint first, CGPoint second) {
     return hypotf(second.x - first.x, second.y - first.y);
 }
 
+CGPoint subtractPoint(CGPoint first, CGPoint second) {
+    return CGPointMake(first.x - second.x, first.y - second.y);
+}
+
+CGFloat angleBetweenPoints(CGPoint first, CGPoint second) {
+    first = rwNormalize(first);
+    second = rwNormalize(second);
+    CGFloat a = ((first.x * second.y) - (first.y*second.x));
+    CGFloat b = ((first.x * second.x) + (first.y*second.y));
+    float angle = atan2f(a, b);
+
+    if( fabs(angle) < kCGPointEpsilon ) return 0.f;
+	return angle;
+}
+static inline CGPoint rwNormalize(CGPoint a) {
+    float length = rwLength(a);
+    return CGPointMake(a.x / length, a.y / length);
+}
+
+static inline float rwLength(CGPoint a) {
+    return sqrtf(a.x * a.x + a.y * a.y);
+}
+
+- (float) normalAngleFromAngle: (float)angle
+{
+	while (angle > 360)
+		angle -= 360;
+	
+	while (angle < 0)
+		angle += 360;
+	
+    return angle;
+}
+
+- (void) rotateToAngle: (float) angle
+{
+	wheel.zRotation += CC_RADIANS_TO_DEGREES(angle);
+	wheel.zRotation = [self normalAngleFromAngle:wheel.zRotation];
+    NSLog(@"Angle of Rotation : %f",wheel.zRotation);
+}
 @end
